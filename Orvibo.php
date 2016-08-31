@@ -31,14 +31,16 @@ class Orvibo
   private $port;
   private $mac;
   private $delay = 10000; //microseconds
+  private $retryCount;
   private $subscribed=false;
   private $twenties = array(0x20,0x20,0x20,0x20,0x20,0x20);
   private $zeroes = array(0x00,0x00,0x00,0x00);
   
-  public function __construct($host = '10.10.100.254', $port = 10000, $mac)
+  public function __construct($host = '10.10.100.254', $port = 10000, $mac, $retryCount=5)
   {	 
    $this->host = $host;
    $this->port = $port;
+   $this->retryCount = $retryCount;
    $this->mac = $mac;
    if ($this->subscribed === false) {
       $this->subscribe();
@@ -79,7 +81,7 @@ class Orvibo
   public function sendCommand(Array $command)
   {
     $message = vsprintf(str_repeat('%c', count($command)), $command);
-    for ($try=0;$try<5;$try++) {
+    for ($try=0;$try<$this->retryCount;$try++) {
       if ($socket = socket_create(AF_INET, SOCK_DGRAM, SOL_UDP)) {
         socket_sendto($socket, $message, strlen($message), 0, $this->host, $this->port);
         socket_close($socket);
