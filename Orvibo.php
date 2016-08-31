@@ -77,6 +77,21 @@ class Orvibo
     $command = array_merge($command, $this->mac, $this->twenties, $this->zeroes, array(0x00));
     $this->sendCommand($command);    
   }
+
+  public function status($listen_host) {
+   if ($this->subscribed === false) {
+      $this->subscribe();
+    }
+    $socket = socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
+    socket_set_option($socket,SOL_SOCKET,SO_RCVTIMEO,array("sec"=>1,"usec"=>0));
+    socket_bind($socket, $listen_host, $this->port);
+    $command = array(0x68,0x64,0x00,0x1e,0x63,0x6c);
+    $command = array_merge($command, $this->mac, $this->twenties, array_reverse($this->mac), $this->twenties);
+    $this->sendCommand($command);
+    $from = '';
+    socket_recvfrom($socket, $buf, 1000, 0, $from);
+    return substr($this->ascii2hex($buf),-2,1);
+  }
   
   public function sendCommand(Array $command)
   {
