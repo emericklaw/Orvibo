@@ -3,7 +3,8 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2015 Phil Parsons <phil@parsons.uk.com>
+Copyright (c) 2015 Phil Parsons <phil@parsons.uk.com>,
+              2016 Sergey Fedosov <fso@vsibiri.info>,
               2016 Matthew Emerick-Law <matt@emericklaw.co.uk>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -27,22 +28,22 @@ SOFTWARE.
 
 class Orvibo
 {
-  
+
   private $host;
   private $port;
   private $mac;
   private $delay = 10000; //microseconds
   private $retryCount;
-  private $subscribed=false;
-  private $twenties = array(0x20,0x20,0x20,0x20,0x20,0x20);
-  private $zeroes = array(0x00,0x00,0x00,0x00);
+  private $subscribed = false;
+  private $twenties = ['20' ,'20' ,'20' ,'20' ,'20' ,'20'];
+  private $zeroes = ['00', '00', '00', '00'];
   
-  public function __construct($host = '10.10.100.254', $port = 10000, $mac, $retryCount=5)
-  {	 
+  public function __construct($mac, $host, $port = 10000, $retryCount=5)
+  { 
    $this->host = $host;
    $this->port = $port;
    $this->retryCount = $retryCount;
-   $this->mac = $mac;
+   $this->mac = explode(':', $mac);
    if ($this->subscribed === false) {
       $this->subscribe();
     }
@@ -53,50 +54,54 @@ class Orvibo
     return $this->delay;
   }
 
-  private function subscribe() {
-    $command = array(0x68,0x64,0x00,0x1e,0x63,0x6c);
-    $command = array_merge($command, $this->mac, $this->twenties, array_reverse($this->mac),
-			   $this->twenties);
+  private function subscribe()
+  {
+    $command = ['68', '64', '00', '1e', '63', '6c'];
+    $command = array_merge($command, $this->mac, $this->twenties, array_reverse($this->mac), $this->twenties);
     $this->sendCommand($command);
     $this->subscribed=true;
   }
 
-  public function on() {
-   if ($this->subscribed === false) {
+  public function on()
+  {
+    if ($this->subscribed === false) {
       $this->subscribe();
     }
-    $command = array(0x68,0x64,0x00,0x17,0x64,0x63);
-    $command = array_merge($command, $this->mac, $this->twenties, $this->zeroes, array(0x01));
+    $command = ['68', '64', '00', '17', '64', '63'];
+    $command = array_merge($command, $this->mac, $this->twenties, $this->zeroes, ['01']);
     $this->sendCommand($command);    
   }
   
-  public function off() {
-   if ($this->subscribed === false) {
+  public function off()
+  {
+    if ($this->subscribed === false) {
       $this->subscribe();
     }
-    $command = array(0x68,0x64,0x00,0x17,0x64,0x63);
-    $command = array_merge($command, $this->mac, $this->twenties, $this->zeroes, array(0x00));
+    $command = ['68', '64', '00', '17', '64', '63'];
+    $command = array_merge($command, $this->mac, $this->twenties, $this->zeroes, ['00']);
     $this->sendCommand($command);    
   }
 
-  public function status($listen_host) {
-   if ($this->subscribed === false) {
+  public function status($listen_host)
+  {
+    if ($this->subscribed === false) {
       $this->subscribe();
     }
     $socket = socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
-    socket_set_option($socket,SOL_SOCKET,SO_RCVTIMEO,array("sec"=>1,"usec"=>0));
+    socket_set_option($socket,SOL_SOCKET,SO_RCVTIMEO,['sec'=>1,'usec'=>0]);
     socket_bind($socket, $listen_host, $this->port);
-    $command = array(0x68,0x64,0x00,0x1e,0x63,0x6c);
+    $command = ['68', '64', '00', '1e', '63', '6c'];
     $command = array_merge($command, $this->mac, $this->twenties, array_reverse($this->mac), $this->twenties);
     $this->sendCommand($command);
     $from = '';
-    socket_recvfrom($socket, $buf, 1000, 0, $from);
+    $port = 0;
+    socket_recvfrom($socket, $buf, 1000, 0, $from, $port);
     return substr($this->ascii2hex($buf),-2,1);
   }
   
   public function sendCommand(Array $command)
   {
-    $message = vsprintf(str_repeat('%c', count($command)), $command);
+    $message = $this->arr2bin($command);
     for ($try=0;$try<$this->retryCount;$try++) {
       if ($socket = socket_create(AF_INET, SOCK_DGRAM, SOL_UDP)) {
         socket_sendto($socket, $message, strlen($message), 0, $this->host, $this->port);
@@ -106,12 +111,21 @@ class Orvibo
     }
   }
 
+  public function arr2bin(array $arr)
+  {
+    return implode(null,
+      array_map('chr',
+        array_map('hexdec', $arr)
+      )
+    );
+  }
+  
   public function ascii2hex($ascii) {
     $hex = '';
     for ($i = 0; $i < strlen($ascii); $i++) {
       $byte = strtoupper(dechex(ord($ascii{$i})));
       $byte = str_repeat('0', 2 - strlen($byte)).$byte;
-      $hex.=$byte." ";
+      $hex.=$byte.' ';
     }
     return $hex;
   }
